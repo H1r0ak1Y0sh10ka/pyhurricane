@@ -5,6 +5,7 @@
 </p>
 
 ## Directory
+<pre>
 .
 ├── LICENSE
 ├── README.md
@@ -13,12 +14,9 @@
 ├── src
 │   └── pyhurricane
 │       ├── __init__.py
-│       ├── __pycache__
-│       │   ├── __init__.cpython-312.pyc
-│       │   ├── trajectory.cpython-312.pyc
-│       │   └── util.cpython-312.pyc
 │       ├── trajectory.py
 │       └── util.py
 └── work
     ├── __init__.py
     └── boxplot_trajectory.py
+</pre>
