@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 ##### import modules
 
 import matplotlib.pyplot as plt
@@ -244,10 +243,9 @@ def boxplot_distance_interp_trajectory_eachpoint_timeseries_ens(traj_data: list,
     return fig
 
 #####
-def boxplot_param_interp_trajectory_eachpoint_timeseries(traj_data: list, model_data: list, legends: list,
+def boxplot_param_interp_trajectory_eachpoint_timeseries(traj_data: list, legends: list,
                                                             trajectry_inittime: int, skip_hour_time: int, end_hour_time: int, bottom_height: float, top_height: float, param: str)  -> plt:
     """
-    This function is
 
     Args:
         traj_data (list): Trajectory data containing x, y coordinates and height.
@@ -346,26 +344,10 @@ def boxplot_param_interp_trajectory_eachpoint_timeseries(traj_data: list, model_
     return fig
 
 #####
-def boxplot_param_interp_trajectory_eachpoint_timeseries_ens(traj_data: list, model_data: list, ex_name: list, legends: list,
-                                                                trajectry_inittime: int, skip_hour_time: int, end_hour_time: int, bottom_height: float, top_height: float, param: str) -> plt:
-    """
-    This function 
+def boxplot_param_interp_trajectory_eachpoint_timeseries_ens(traj_data: list, ex_name: list, legends: list,
+                                                            trajectry_inittime: int, skip_hour_time: int, end_hour_time: int, bottom_height: float, top_height: float, param: str) -> plt:
 
-    Args:
-        traj_data (list): _description_
-        model_data (list): _description_
-        ex_name (list): _description_
-        legends (list): _description_
-        trajectry_inittime (int): _description_
-        skip_hour_time (int): _description_
-        end_hour_time (int): _description_
-        bottom_height (float): _description_
-        top_height (float): _description_
-        param (str): _description_
 
-    Returns:
-        plt: _description_
-    """
 
     ds                  = np.load(traj_data[0])
     shape_size          = ds.shape
@@ -469,3 +451,9 @@ def boxplot_param_interp_trajectory_eachpoint_timeseries_ens(traj_data: list, mo
     plt.tight_layout()
 
     return fig
+
+
+
+def example_function(arg1: int, arg2: str) -> bool:
+    # この行にカーソルを置いて """ (3つのダブルクォート) を入力
+    pass
