@@ -6,6 +6,10 @@ import xarray as xr
 
 import pyhurricane.util as util
 
+########## Trajectory
+
+
+########## Make figure
 
 #####
 def boxplot_distance_interp_trajectory_eachpoint_timeseries(traj_data: list, model_data: list, legends: list,
