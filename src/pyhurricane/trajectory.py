@@ -1,11 +1,130 @@
 ##### import modules
 
+import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+import scipy.interpolate
+from scipy.interpolate import RegularGridInterpolator
 
 import pyhurricane.util as util
 
+#### Logger setting part        ;
+logger = logging.getLogger(__name__)
+#logging.basicConfig(filename=log_dir+log_name,level=logging.INFO, format='[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+########## Trajectory analyis
+
+#####
+def trajectory_analysis_round(model_data,
+                        track_base_it,
+                        track_time_Tsize,
+                        track_time_delta,
+                        track_type,
+                        radius,
+                        theta_interval,
+                        track_base_Z,
+                        track_variable_size=8
+):
+    ds      =  xr.open_dataset(model_data)
+    track_base_time = ds.time[track_base_it].values
+    x_coord = ds.x
+    y_coord = ds.y
+    z_coord = ds.z
+    x_array = np.array(range(len(x_coord)))
+    y_array = np.array(range(len(y_coord)))
+    z_array = np.array(range(len(z_coord)))
+
+    # 最小値を取る x と y 座標を求める
+    min_mslp_x, min_mslp_y = util.find_min_mslp_xy(ds.MSLP)
+    # 1 分ごとに内挿
+    min_mslp_interp_x, min_mslp_interp_y = util.interpolate_time_xy(min_mslp_x, min_mslp_y)
+    # 新しい x 座標に対応する Xcoord を計算
+    min_mslp_interp_xcoord = util.interpolate_coord_x(x_coord, x_array, min_mslp_interp_x)
+    min_mslp_interp_ycoord = util.interpolate_coord_x(y_coord, y_array, min_mslp_interp_y)
+
+    theta = np.arange(0, 2*np.pi+1e-5, np.deg2rad(theta_interval))[:-1]
+
+    track_time_size = int(track_time_Tsize * 3600 / track_time_delta)
+    track_data      = np.zeros((track_time_size, theta.size, track_variable_size))
+
+    min_mslp_org_xcoord = min_mslp_interp_xcoord[track_base_it*60]
+    min_mslp_org_ycoord = min_mslp_interp_ycoord[track_base_it*60]
+
+    #トラックナンバーごとに中心からの距離を求めて座標を作成する
+    track_xs = xr.DataArray(min_mslp_org_xcoord + (radius * np.cos(theta)), dims=["track_number"])
+    track_ys = xr.DataArray(min_mslp_org_ycoord + (radius * np.sin(theta)), dims=["track_number"])
+    track_zs = xr.DataArray([z_coord[track_base_Z]] * theta.size, dims=["track_number"])
+
+    track_data[0,:,0] = track_xs.values
+    track_data[0,:,1] = track_ys.values
+    track_data[0,:,2] = track_zs.values
+    track_data[0,:,3] = ds.U.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+    track_data[0,:,4] = ds.V.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+    track_data[0,:,5] = ds.W.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+    track_data[0,:,6] = ds.QV.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+    track_data[0,:,7] = ds.RH.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+
+    #フォワードトラジェクトリー解析
+    if track_type == 'forward':
+        #風速等を使って次の時間のトラックデータ座標を求める
+        for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
+            logger.info('Now timestep is ' + str(PASS_SEC) )
+            track_time = track_base_time + PASS_SEC
+            pass_time_step = int(PASS_SEC/track_time_delta)
+            print(pass_time_step)
+
+            x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * track_time_delta
+            y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * track_time_delta
+            z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * track_time_delta
+
+            track_xs = xr.DataArray(track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas, dims=["track_number"])
+            track_ys = xr.DataArray(track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas, dims=["track_number"])
+            track_zs = xr.DataArray(track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas, dims=["track_number"])
+            track_data[pass_time_step, :, 0] = track_xs.values
+            track_data[pass_time_step, :, 1] = track_ys.values
+            track_data[pass_time_step, :, 2] = track_zs.values
+
+            track_zs_intp = track_zs.clip(min=z_coord[0], max=z_coord[-1])
+
+            track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+            track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+            track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+            track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+            track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+        logger.info('************* Forward-trajectory calculation has been finished !! *************')
+
+    elif track_type == 'back':
+        #風速等を使って次の時間のトラックデータ座標を求める
+        for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
+            track_time = track_base_time + PASS_SEC
+            pass_time_step = int(PASS_SEC/track_time_delta)
+
+            x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * -track_time_delta
+            y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * -track_time_delta
+            z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * -track_time_delta
+
+            track_xs = xr.DataArray(track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas, dims=["track_number"])
+            track_ys = xr.DataArray(track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas, dims=["track_number"])
+            track_zs = xr.DataArray(track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas, dims=["track_number"])
+            track_data[pass_time_step, :, 0] = track_xs.values
+            track_data[pass_time_step, :, 1] = track_ys.values
+            track_data[pass_time_step, :, 2] = track_zs.values
+
+            track_zs_intp = track_zs.clip(min=z_coord[0], max=z_coord[-1])
+
+            track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+            track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+            track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+            track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+            track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+        logger.info('************* Back-trajectory calculation has been finished !! *************')
+
+    logger.info(track_data[:,0,0])
+    #np.save(save_path + save_name, track_data)
+
+########## Make figure
 
 #####
 def boxplot_distance_interp_trajectory_eachpoint_timeseries(traj_data: list, model_data: list, legends: list,
