@@ -37,11 +37,12 @@ track_type            = 'forward'   # Kinds of trajectory, 'forward' or 'back' b
 track_init_time       = 0           # Trajectory start time in analysis [hour]
 track_base_time_start = 18          # Trajectry start time in calculation [hour]
 track_time            = 24          # Trajectry time in calculation [hour]
+tack_time_delta       = 60
 
 # Please set the directory and file name of the model data and trajectory data in your environment.
 input_model_data_dir        = "/mnt/data1/model/scale/faxai/fnl/flow/"
 input_model_name_suffix     = "pe000000.nc"
-input_trajectry_data_dir    = "/home/yoshioka/research/analysis/python/scale/trajectory/trajectory_data_360/"
+#input_trajectry_data_dir    = "/home/yoshioka/research/analysis/python/scale/trajectory/trajectory_data_360/"
 
 #case_names            = ['CTL','Cd1730','Cd1530','Cd1330','Cd1130','Cd1030'] #case_names = ('CTL','25km','50km','75km','100km','150km','200km')
 #legends               = ['CTL','R025km','R050km','R100km','R150km','R200km'] #legends = case_names
@@ -50,53 +51,39 @@ legends    = ['CTL']
 
 #### Output data and dirctory
 
-output_dir_path  = "./"+str(plot_kind[0].upper())+radix+param+"_"+ex_kind
-if ex_kind == "individual":
-    ex_kind = case_names[0]
+#output_dir_path  = "./"+str(plot_kind[0].upper())+radix+param+"_"+ex_kind
+#if ex_kind == "individual":
+#    ex_kind = case_names[0]
 
-if "timeseries" in prefix or "timeseries" in radix or "timeseries" in suffix or "timeseries" in plot_kind:
-    save_prefix      = model_name+'-'+tc_name+"-"+ex_name+"-"+str(plot_kind[0].upper())+radix+param+"_"+ex_kind
+#if "timeseries" in prefix or "timeseries" in radix or "timeseries" in suffix or "timeseries" in plot_kind:
+#    save_prefix      = model_name+'-'+tc_name+"-"+ex_name+"-"+str(plot_kind[0].upper())+radix+param+"_"+ex_kind
 
-output_fig_name  = save_prefix
-output_fig_type  = 'png'
-dpi              = 350
+#output_fig_name  = save_prefix
+#output_fig_type  = 'png'
+#dpi              = 350
 
 #### Add configuration
-util.create_dir(output_dir_path)
+#util.create_dir(output_dir_path)
 
 #### Reading trajectory data and model data.
 input_model_data_list = []
-input_trajectry_data_list = []
 input_model_data_list = [f"{input_model_data_dir}/{case}/"
                         f"{case}.{input_model_name_suffix}" for case in case_names]
-input_trajectry_data_list = [
-                        f"{input_trajectry_data_dir}/"
-                        f"trajectry_data_{case}_T{track_base_time_start}_round_{radius}m_CT{track_time}.npy"
-                        for case in case_names
-                        ]
-"""
-input_model_data_list = [f"/media/yoshioka/data/mochida_data/percent_experiment/{case}/"
-                        f"evapo_0.0_{case}.pe000000.nc" for case in case_names]
-input_trajectry_data_list = [
-                        f"/media/yoshioka/data/mochida_data/trajectory/percent_analysis/"
-                        f"{case}/track_data_0.0_{case}_T{track_base_time_start}=200km_circle_360points_24hours.npy"
-                        for case in case_names
-                        ]
-"""
 
 ###### Select plotting kind function
 
 #####　can use this function for boxplot and scatterplot
-#traj.boxplot_distance_interp_trajectory_eachpoint_timeseries(input_trajectry_data_list,input_model_data_list, legends, track_base_time_start, 1, 24, 0.0, 2000.0)
-#traj.boxplot_distance_interp_trajectory_eachpoint_timeseries_ens(input_trajectry_data_list,input_model_data_list, case_names, legends, track_base_time_start, 2, 24, 0.0, 2000.0)
+traj.trajectory_analysis_round(input_model_data_list[0],
+                            track_base_time_start,
+                            track_time,
+                            tack_time_delta,
+                            track_type,
+                            radius,
+                            theta_interval=1,
+                            track_base_Z=0,
+                            track_variable_size=8
+                            )
 
-traj.boxplot_param_interp_trajectory_eachpoint_timeseries(input_trajectry_data_list, legends, track_base_time_start, 1, 24, 0.0, 2000.0, param)
-#traj.boxplot_param_interp_trajectory_eachpoint_timeseries_ens(input_trajectry_data_list,case_names, legends, track_base_time_start, 2, 24, 0.0, 2000.0, param)
+#logging.info(f"The figure is saved as {output_dir_path}/{output_fig_name}.{output_fig_type}")
 
-#####
-
-##### Save figure
-plt.savefig(output_dir_path+'/'+output_fig_name+'.'+output_fig_type, format=output_fig_type, dpi=dpi)
-plt.show()
-
-logging.info(f"The figure is saved as {output_dir_path}/{output_fig_name}.{output_fig_type}")
+# %%
