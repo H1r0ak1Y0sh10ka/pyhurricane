@@ -1,11 +1,12 @@
 ##### import modules
 
 import logging
-import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-import scipy.interpolate
-from scipy.interpolate import RegularGridInterpolator
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+#import scipy.interpolate
+#from scipy.interpolate import RegularGridInterpolator
 
 import pyhurricane.util as util
 
@@ -127,8 +128,71 @@ def trajectory_analysis_round(model_data,
 ########## Make figure
 
 #####
+def timeseries_trajectory_ens(traj_data: list, legends,
+                            track_base_it: int,
+                            time_start=0,
+                            time_end=60*24,
+                            alpha=None):
+    """timeseries_trajectory_ens _summary_
+
+    This function
+
+    Args:
+        traj_data (list): Trajectory data containing x, y coordinates and height.
+        label (_type_): _description_
+        track_base_it (int): _description_
+        time_start (int, optional): _description_. Defaults to 0.
+        time_end (_type_, optional): _description_. Defaults to 60*24.
+        alpha (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
+
+    ds = np.load(traj_data[0])
+    QV_size = ds.shape
+    time_size = QV_size[0]
+    cmap = cm.tab10
+
+    time_axis = np.arange(time_start, time_end, 1)
+    var_et = np.zeros((len(legends), time_size),dtype='float32')
+    print('var_et.shape=', var_et.shape)
+
+    for ii in range(len(legends)):
+        ds = np.load(traj_data[ii])
+        QV = ds[:, :, 6]
+        QV_mean = np.zeros((time_size))
+
+        for tt in range(time_start, time_end, 1):
+            var_et[ii,tt - time_start] = np.mean(QV[tt, :]) * 1000
+
+        if ii == 0:
+            plt.plot(time_axis, var_et[0,:], linestyle='-', linewidth=3, color='black', label=legends[ii], alpha=alpha)
+        else:
+            plt.plot(time_axis, var_et[ii,:], linestyle='-', linewidth=3, color=cmap(ii/len(legends)), label=legends[ii], alpha=alpha)
+
+    # Tick label setup
+    plt.ylabel('Specific Humidity [g/kg]',fontsize=18,labelpad=10)
+    plt.yticks(np.arange(0, 30.1, 5), np.arange(0, 30.1, 5))
+
+    hour_axis = np.arange(0, time_end+1, 120)
+    hour_name = [str(int((HOUR / 60) + track_base_it)) for HOUR in hour_axis]
+    plt.xlabel('Calculation time [Hour]',fontsize=18,labelpad=10)
+    plt.xticks(hour_axis, hour_name)
+
+    # Legend setup
+    plt.legend(bbox_to_anchor=(1, 1), loc='upper right', borderaxespad=0, fontsize=15)
+
+    plt.grid(True)
+    plt.tight_layout()
+
+    return plt
+
+#####
 def boxplot_distance_interp_trajectory_eachpoint_timeseries(traj_data: list, model_data: list, legends: list,
-                                                            trajectry_inittime: int, skip_hour_time: int, end_hour_time: int, bottom_height: float, top_height: float)  -> plt:
+                                                            trajectry_inittime: int,
+                                                            skip_hour_time: int, end_hour_time: int,
+                                                            bottom_height: float, top_height: float)  -> plt:
     """
     This function generates a boxplot of the distance between trajectory points and the minimum sea level pressure (MSLP) point over time.
     It takes trajectory data, model data, legends, and other parameters as input and returns a matplotlib plot.

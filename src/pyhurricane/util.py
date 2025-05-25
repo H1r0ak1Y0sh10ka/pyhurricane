@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 ##### import modules
 
 import logging
@@ -16,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s %(levelname)s %(nam
 
 #####
 def create_dir(dir_path:str) -> None:
-    """_summary_
+    """
     This function creates a directory if it does not exist.
 
     Args:
@@ -110,7 +109,7 @@ def interpolate_time_xy(x_t_in:int, y_t_in:int) -> tuple:
     Returns:
         tuple: Two arrays containing the interpolated x and y coordinates.
     """
-    #print(len(x_t_in), len(y_t_in))
+
     num_t = x_t_in.shape[0]
     original_time = np.linspace(0, num_t-1, num_t)
     interpolated_time = np.linspace(0, num_t-1, (num_t-1)*60+1)
