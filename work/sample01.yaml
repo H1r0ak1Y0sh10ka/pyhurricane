@@ -1,0 +1,40 @@
+##### Configuration
+model_name       : "scale"       # Model name, you can set any name.
+tc_name          : "faxai"       # Typhoon name, you can set any name.
+ex_name          : "cd_radius"   # Experiment name, you can set any name.
+plot_kind        : 'boxplot'     # 'boxplot' or 'scatter'
+param            : 'qv'          # 'distance' or 'qv', 'rh' ###or hgt
+
+ex_kind          : "individual"   # Plot experiments, "individual" or "ensemble"
+draw_height      : 1             # Number of height layers to be drawn
+
+prefix           : ""
+radix            : "_trajectory_timeseries_"
+suffix           : ""
+
+init_data_type        : 'round'     # Kinds of setting parcels, 'square' or 'round' but 'square' is not implemented yet.
+radius                :  250000      #  Setted parcels in distance from the center of typhoon [m].
+track_type            : 'forward'   # Kinds of trajectory, 'forward' or 'back' but 'back' is not implemented yet.
+track_init_time       :  0           # Trajectory start time in analysis [hour]
+track_base_time_start :  18          # Trajectry start time in calculation [hour]
+track_time            :  24          # Trajectry time in calculation [hour]
+
+init_data_type        : 'round'     # Kinds of setting parcels, 'square' or 'round' but 'square' is not implemented yet.
+radius                : 250000      #  Setted parcels in distance from the center of typhoon [m].
+track_type            : 'forward'   # Kinds of trajectory, 'forward' or 'back' but 'back' is not implemented yet.
+track_init_time       : 0           # Trajectory start time in analysis [hour]
+track_base_time_start : 18          # Trajectry start time in calculation [hour]
+track_time            : 24          # Trajectry time in calculation [hour]
+
+# Please set the directory and file name of the model data and trajectory data in your environment.
+input_model_data_dir        : "/mnt/data1/model/scale/faxai/fnl/flow/"
+input_model_name_suffix     : "pe000000.nc"
+input_trajectry_data_dir    : "/home/yoshioka/research/analysis/python/scale/trajectory/trajectory_data_360/"
+
+#case_names            : ['CTL','Cd1730','Cd1530','Cd1330','Cd1130','Cd1030'] #case_names = ('CTL','25km','50km','75km','100km','150km','200km')
+#legends               : ['CTL','R025km','R050km','R100km','R150km','R200km'] #legends = case_names
+case_names : ['CTL']
+legends    : ['CTL']
+
+output_fig_type  : 'png'
+dpi              : 350
