@@ -1,7 +1,10 @@
 matplotlib==3.10.3
-numpy==2.2.6
+numpy~=1.26.4
 pip==24.2
 PyYAML==6.0.2
-scipy==1.15.3
+scipy~=1.13.1
 setuptools==75.1.0
 xarray==2024.11.0
+# Optional dependencies for performance or to satisfy other tools in the environment
+# numexpr~=2.9.0  # Example version, adjust as needed
+# pyarrow~=16.1.0 # Example version, adjust as needed
