@@ -28,7 +28,14 @@ def trajectory_analysis_round(model_data,
                         track_base_Z,
                         track_variable_size=8
 ):
-    ds      =  xr.open_dataset(model_data)
+    #ds      =  xr.open_dataset(model_data)
+    try:
+        ds = xr.open_dataset(model_data, chunks={'time': 1, 'z': 'auto', 'y': 'auto', 'x': 'auto'})
+    except Exception as e:
+        logger.error(f"Failed to open dataset {model_data} with chunks: {e}")
+        # チャンクなしで再試行するか、エラーを投げる
+
+    #ds = xr.open_dataset(model_data)
     track_base_time = ds.time[track_base_it].values
     x_coord = ds.x
     y_coord = ds.y
@@ -38,91 +45,196 @@ def trajectory_analysis_round(model_data,
     z_array = np.array(range(len(z_coord)))
 
     # 最小値を取る x と y 座標を求める
-    min_mslp_x, min_mslp_y = util.find_min_mslp_xy(ds.MSLP)
+    #min_mslp_x, min_mslp_y = util.find_min_mslp_xy(ds.MSLP)
     # 1 分ごとに内挿
-    min_mslp_interp_x, min_mslp_interp_y = util.interpolate_time_xy(min_mslp_x, min_mslp_y)
+    #min_mslp_interp_x, min_mslp_interp_y = util.interpolate_time_xy(min_mslp_x, min_mslp_y)
     # 新しい x 座標に対応する Xcoord を計算
-    min_mslp_interp_xcoord = util.interpolate_coord_x(x_coord, x_array, min_mslp_interp_x)
-    min_mslp_interp_ycoord = util.interpolate_coord_x(y_coord, y_array, min_mslp_interp_y)
+    #min_mslp_interp_xcoord = util.interpolate_coord_x(x_coord, x_array, min_mslp_interp_x)
+    #min_mslp_interp_ycoord = util.interpolate_coord_x(y_coord, y_array, min_mslp_interp_y)
 
-    theta = np.arange(0, 2*np.pi+1e-5, np.deg2rad(theta_interval))[:-1]
+    try:
+        # 最小値を取る x と y 座標を求める
+        # MSLPデータもチャンクされている可能性があるため、.load() で明示的にメモリに読み込むか、
+        # find_min_mslp_xy がチャンクされたDataArrayを扱えるようにする
+        mslp_data = ds.MSLP
+        if hasattr(mslp_data, 'chunks') and mslp_data.chunks is not None:
+            logger.info("Loading MSLP data into memory for min/max operations.")
+            mslp_data = mslp_data.load() # MSLPが巨大でなければloadする
 
-    track_time_size = int(track_time_Tsize * 3600 / track_time_delta)
-    track_data      = np.zeros((track_time_size, theta.size, track_variable_size))
+        min_mslp_x, min_mslp_y = util.find_min_mslp_xy(mslp_data)
+        # 1 分ごとに内挿
+        min_mslp_interp_x, min_mslp_interp_y = util.interpolate_time_xy(min_mslp_x, min_mslp_y)
+        # 新しい x 座標に対応する Xcoord を計算
+        min_mslp_interp_xcoord = util.interpolate_coord_x(x_coord.values, x_array, min_mslp_interp_x) # .valuesでNumPy配列として渡す
+        min_mslp_interp_ycoord = util.interpolate_coord_x(y_coord.values, y_array, min_mslp_interp_y) # .valuesでNumPy配列として渡す
 
-    min_mslp_org_xcoord = min_mslp_interp_xcoord[track_base_it*60]
-    min_mslp_org_ycoord = min_mslp_interp_ycoord[track_base_it*60]
+        #theta = np.arange(0, 2*np.pi+1e-5, np.deg2rad(theta_interval))[:-1]
 
-    #トラックナンバーごとに中心からの距離を求めて座標を作成する
-    track_xs = xr.DataArray(min_mslp_org_xcoord + (radius * np.cos(theta)), dims=["track_number"])
-    track_ys = xr.DataArray(min_mslp_org_ycoord + (radius * np.sin(theta)), dims=["track_number"])
-    track_zs = xr.DataArray([z_coord[track_base_Z]] * theta.size, dims=["track_number"])
+        theta = np.arange(0, 2*np.pi+1e-5, np.deg2rad(theta_interval))[:-1]
+        track_time_size = int(track_time_Tsize * 3600 / track_time_delta)
+        track_data      = np.zeros((track_time_size, theta.size, track_variable_size), dtype=np.float64)
 
-    track_data[0,:,0] = track_xs.values
-    track_data[0,:,1] = track_ys.values
-    track_data[0,:,2] = track_zs.values
-    track_data[0,:,3] = ds.U.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
-    track_data[0,:,4] = ds.V.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
-    track_data[0,:,5] = ds.W.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
-    track_data[0,:,6] = ds.QV.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
-    track_data[0,:,7] = ds.RH.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+        #track_time_size = int(track_time_Tsize * 3600 / track_time_delta)
+        #track_data      = np.zeros((track_time_size, theta.size, track_variable_size))
+        min_mslp_org_xcoord = min_mslp_interp_xcoord[track_base_it*60]
+        min_mslp_org_ycoord = min_mslp_interp_ycoord[track_base_it*60]
 
-    #フォワードトラジェクトリー解析
-    if track_type == 'forward':
-        #風速等を使って次の時間のトラックデータ座標を求める
-        for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
-            logger.info('Now timestep is ' + str(PASS_SEC) )
-            track_time = track_base_time + PASS_SEC
-            pass_time_step = int(PASS_SEC/track_time_delta)
-            print(pass_time_step)
+        #min_mslp_org_xcoord = min_mslp_interp_xcoord[track_base_it*60]
+        #min_mslp_org_ycoord = min_mslp_interp_ycoord[track_base_it*60]
+        #トラックナンバーごとに中心からの距離を求めて座標を作成する
+        track_xs_np = min_mslp_org_xcoord + (radius * np.cos(theta))
+        track_ys_np = min_mslp_org_ycoord + (radius * np.sin(theta))
+        track_zs_np = np.full(theta.size, z_coord[track_base_Z].item(), dtype=np.float64)
 
-            x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * track_time_delta
-            y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * track_time_delta
-            z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * track_time_delta
+        #トラックナンバーごとに中心からの距離を求めて座標を作成する
+        #track_xs = xr.DataArray(min_mslp_org_xcoord + (radius * np.cos(theta)), dims=["track_number"])
+        #track_ys = xr.DataArray(min_mslp_org_ycoord + (radius * np.sin(theta)), dims=["track_number"])
+        #track_zs = xr.DataArray([z_coord[track_base_Z]] * theta.size, dims=["track_number"])
+        track_xs_xr = xr.DataArray(track_xs_np, dims=["track_number"])
+        track_ys_xr = xr.DataArray(track_ys_np, dims=["track_number"])
+        track_zs_xr = xr.DataArray(track_zs_np, dims=["track_number"])
 
-            track_xs = xr.DataArray(track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas, dims=["track_number"])
-            track_ys = xr.DataArray(track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas, dims=["track_number"])
-            track_zs = xr.DataArray(track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas, dims=["track_number"])
-            track_data[pass_time_step, :, 0] = track_xs.values
-            track_data[pass_time_step, :, 1] = track_ys.values
-            track_data[pass_time_step, :, 2] = track_zs.values
+        #track_data[0,:,0] = track_xs.values
+        #track_data[0,:,1] = track_ys.values
+        #track_data[0,:,2] = track_zs.values
+        #track_data[0,:,3] = ds.U.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+        #track_data[0,:,4] = ds.V.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+        #track_data[0,:,5] = ds.W.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+        #track_data[0,:,6] = ds.QV.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+        #track_data[0,:,7] = ds.RH.isel(time=track_base_it).interp(x=track_xs, y=track_ys, z=track_zs).values
+        track_data[0,:,0] = track_xs_np
+        track_data[0,:,1] = track_ys_np
+        track_data[0,:,2] = track_zs_np
+        # isel().interp() はチャンクされたデータに対して効率的に動作するはず
+        track_data[0,:,3] = ds.U.isel(time=track_base_it).interp(x=track_xs_xr, y=track_ys_xr, z=track_zs_xr).values
+        track_data[0,:,4] = ds.V.isel(time=track_base_it).interp(x=track_xs_xr, y=track_ys_xr, z=track_zs_xr).values
+        track_data[0,:,5] = ds.W.isel(time=track_base_it).interp(x=track_xs_xr, y=track_ys_xr, z=track_zs_xr).values
+        track_data[0,:,6] = ds.QV.isel(time=track_base_it).interp(x=track_xs_xr, y=track_ys_xr, z=track_zs_xr).values
+        track_data[0,:,7] = ds.RH.isel(time=track_base_it).interp(x=track_xs_xr, y=track_ys_xr, z=track_zs_xr).values
 
-            track_zs_intp = track_zs.clip(min=z_coord[0], max=z_coord[-1])
 
-            track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
-            track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
-            track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
-            track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
-            track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
-        logger.info('************* Forward-trajectory calculation has been finished !! *************')
+        #フォワードトラジェクトリー解析
+        #if track_type == 'forward':
+            #風速等を使って次の時間のトラックデータ座標を求める
+        #    for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
+        #        logger.info('Now timestep is ' + str(PASS_SEC) )
+                #track_time = track_base_time + PASS_SEC
+        #        track_time = track_base_time + np.timedelta64(PASS_SEC, 's')
+        #        pass_time_step = int(PASS_SEC/track_time_delta)
+        #        print(pass_time_step)
+        #フォワードトラジェクトリー解析
+        if track_type == 'forward':
+            #風速等を使って次の時間のトラックデータ座標を求める
+            for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
+                logger.info('Now timestep is ' + str(PASS_SEC) )
+                track_time_dt64 = track_base_time + np.timedelta64(PASS_SEC, 's') # 変数名を変更して明確化
+                pass_time_step = int(PASS_SEC/track_time_delta)
+                # print(pass_time_step) # デバッグ用printは必要に応じてコメントアウト
 
-    elif track_type == 'back':
-        #風速等を使って次の時間のトラックデータ座標を求める
-        for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
-            track_time = track_base_time + PASS_SEC
-            pass_time_step = int(PASS_SEC/track_time_delta)
 
-            x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * -track_time_delta
-            y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * -track_time_delta
-            z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * -track_time_delta
+                #x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * track_time_delta
+                #y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * track_time_delta
+                #z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * track_time_delta
 
-            track_xs = xr.DataArray(track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas, dims=["track_number"])
-            track_ys = xr.DataArray(track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas, dims=["track_number"])
-            track_zs = xr.DataArray(track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas, dims=["track_number"])
-            track_data[pass_time_step, :, 0] = track_xs.values
-            track_data[pass_time_step, :, 1] = track_ys.values
-            track_data[pass_time_step, :, 2] = track_zs.values
+                x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * track_time_delta
+                y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * track_time_delta
+                z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * track_time_delta
 
-            track_zs_intp = track_zs.clip(min=z_coord[0], max=z_coord[-1])
+                #track_xs = xr.DataArray(track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas, dims=["track_number"])
+                #track_ys = xr.DataArray(track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas, dims=["track_number"])
+                #track_zs = xr.DataArray(track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas, dims=["track_number"])
+                #track_data[pass_time_step, :, 0] = track_xs.values
+                #track_data[pass_time_step, :, 1] = track_ys.values
+                #track_data[pass_time_step, :, 2] = track_zs.values
+                current_track_xs_np = track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas
+                current_track_ys_np = track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas
+                current_track_zs_np = track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas
+                track_data[pass_time_step, :, 0] = current_track_xs_np
+                track_data[pass_time_step, :, 1] = current_track_ys_np
+                track_data[pass_time_step, :, 2] = current_track_zs_np
 
-            track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
-            track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
-            track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
-            track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
-            track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
-        logger.info('************* Back-trajectory calculation has been finished !! *************')
+                #track_zs_intp = track_zs.clip(min=z_coord[0], max=z_coord[-1])
 
-    logger.info(track_data[:,0,0])
+                #track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+                #track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+                #track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+                #track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+                #track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp, method='cubic').values
+            #logger.info('************* Forward-trajectory calculation has been finished !! *************')
+                track_xs_for_interp_xr = xr.DataArray(current_track_xs_np, dims=["track_number"])
+                track_ys_for_interp_xr = xr.DataArray(current_track_ys_np, dims=["track_number"])
+                track_zs_for_interp_xr = xr.DataArray(current_track_zs_np, dims=["track_number"])
+                track_zs_clipped_xr = track_zs_for_interp_xr.clip(min=z_coord[0].item(), max=z_coord[-1].item())
+
+                track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr, method='cubic').values
+                track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr, method='cubic').values
+                track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr, method='cubic').values
+                track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr, method='cubic').values
+                track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr, method='cubic').values
+            logger.info('************* Forward-trajectory calculation has been finished !! *************')
+
+        #elif track_type == 'back':
+            #風速等を使って次の時間のトラックデータ座標を求める
+        #    for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
+                #track_time = track_base_time + PASS_SEC
+        #        track_time = track_base_time + np.timedelta64(PASS_SEC, 's')
+        #        pass_time_step = int(PASS_SEC/track_time_delta)
+        elif track_type == 'back':
+            #風速等を使って次の時間のトラックデータ座標を求める
+            for PASS_SEC in range(track_time_delta, track_time_Tsize * 3600, track_time_delta):
+                track_time_dt64 = track_base_time + np.timedelta64(PASS_SEC, 's') # 変数名を変更して明確化
+                pass_time_step = int(PASS_SEC/track_time_delta)
+
+                #x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * -track_time_delta
+                #y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * -track_time_delta
+                #z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * -track_time_delta
+                x_coord_u_deltas = track_data[(pass_time_step)-1, :, 3] * -track_time_delta
+                y_coord_v_deltas = track_data[(pass_time_step)-1, :, 4] * -track_time_delta
+                z_coord_w_deltas = track_data[(pass_time_step)-1, :, 5] * -track_time_delta
+
+
+                #track_xs = xr.DataArray(track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas, dims=["track_number"])
+                #track_ys = xr.DataArray(track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas, dims=["track_number"])
+                #track_zs = xr.DataArray(track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas, dims=["track_number"])
+                #track_data[pass_time_step, :, 0] = track_xs.values
+                #track_data[pass_time_step, :, 1] = track_ys.values
+                #track_data[pass_time_step, :, 2] = track_zs.values
+                current_track_xs_np = track_data[(pass_time_step)-1, :, 0] + x_coord_u_deltas
+                current_track_ys_np = track_data[(pass_time_step)-1, :, 1] + y_coord_v_deltas
+                current_track_zs_np = track_data[(pass_time_step)-1, :, 2] + z_coord_w_deltas
+                track_data[pass_time_step, :, 0] = current_track_xs_np
+                track_data[pass_time_step, :, 1] = current_track_ys_np
+                track_data[pass_time_step, :, 2] = current_track_zs_np
+
+                #track_zs_intp = track_zs.clip(min=z_coord[0], max=z_coord[-1])
+                track_xs_for_interp_xr = xr.DataArray(current_track_xs_np, dims=["track_number"])
+                track_ys_for_interp_xr = xr.DataArray(current_track_ys_np, dims=["track_number"])
+                track_zs_for_interp_xr = xr.DataArray(current_track_zs_np, dims=["track_number"])
+                track_zs_clipped_xr = track_zs_for_interp_xr.clip(min=z_coord[0].item(), max=z_coord[-1].item())
+
+                #track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+                #track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+                #track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+                #track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+                #track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time, x=track_xs, y=track_ys, z=track_zs_intp).values
+            #logger.info('************* Back-trajectory calculation has been finished !! *************')
+                # バックトラジェクトリでは method='cubic' が指定されていなかったため、デフォルトの線形補間になります。
+                # 必要であれば 'cubic' を指定してください。
+                track_data[pass_time_step, :, 3] = ds.U.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr).values
+                track_data[pass_time_step, :, 4] = ds.V.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr).values
+                track_data[pass_time_step, :, 5] = ds.W.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr).values
+                track_data[pass_time_step, :, 6] = ds.QV.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr).values
+                track_data[pass_time_step, :, 7] = ds.RH.interp(time=track_time_dt64, x=track_xs_for_interp_xr, y=track_ys_for_interp_xr, z=track_zs_clipped_xr).values
+            logger.info('************* Back-trajectory calculation has been finished !! *************')
+
+        logger.info(f"First trajectory's X coordinates: {track_data[:,0,0]}") # より詳細なログ
+
+    finally:
+        if 'ds' in locals() and ds is not None:
+            ds.close()
+            logger.info(f"Closed dataset: {model_data}")
+
+    #logger.info(track_data[:,0,0])
     #np.save(save_path + save_name, track_data)
 
 ########## Make figure
