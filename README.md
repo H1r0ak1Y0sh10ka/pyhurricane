@@ -11,12 +11,17 @@
 ├── README.md
 ├── docs
 ├── requirements.txt
+├── setup.cfg
+├── setup.py
 ├── src
-│   └── pyhurricane
-│       ├── __init__.py
-│       ├── trajectory.py
-│       └── util.py
+│   └── pyhurricane
+│       ├── __init__.py
+│       ├── trajectory.py
+│       └── util.py
 └── work
     ├── __init__.py
-    └── boxplot_trajectory.py
+    ├── boxplot_trajectory.py
+    ├── run_trajectory.py
+    ├── sample01.yaml
+    └── timeseries_trajectory.py
 </pre>

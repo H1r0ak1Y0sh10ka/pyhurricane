@@ -3,10 +3,13 @@
 
 import os
 import sys
+
 import yaml
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '../src/'))
 
 import logging
+
 import matplotlib.pyplot as plt
 import pyhurricane.trajectory as traj
 import pyhurricane.util as util
