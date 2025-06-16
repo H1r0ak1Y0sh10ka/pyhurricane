@@ -1,5 +1,6 @@
 ##### import modules
 
+import os
 import logging
 import re
 
@@ -28,6 +29,25 @@ def create_dir(dir_path:str) -> None:
         logging.info(f"ディレクトリ '{dir_path}' を作成しました。")
     else:
         logging.info(f"ディレクトリ '{dir_path}' は既に存在します。")
+
+#####
+def extract_case_name_scale(filepath:str) -> str:
+    """
+    与えられたファイルパスからケース名（例: CTL, Cd1030）を抽出します。
+    パスの形式は '/path/to/flow//CASE_NAME/CASE_NAME.peXXXXXX.nc' を想定しています。
+    """
+    # 1. ファイル名部分を取得 (例: 'CTL.pe000000.nc')
+    basename = os.path.basename(filepath)
+
+    # 2. 拡張子と '.peXXXXXX' の部分を除去
+    # '.peXXXXXX.nc' が特定のパターンであるため、最初の'.'までを抽出するのが確実
+    if '.' in basename:
+        # 最初のドットの前までを取得（例: 'CTL' や 'Cd1030'）
+        case_name = basename.split('.')[0]
+        return case_name
+    else:
+        # パターンに合致しない場合（エラーハンドリング）
+        return None
 
 #####
 def extract_number_before_m(text_in:str) -> int:
