@@ -18,7 +18,10 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s %(levelname)s %(nam
 def making_trackdata(model_data : list,
                     search_x_grid : int = 10,
                     search_y_grid : int = 10,
-                    method : str = "mslp"
+                    method : str = "mslp",
+                    output_dir_path : str = "./trackdata/",
+                    Model_name : str = None,
+                    TC_name : str = None,
                     ) -> pd.DataFrame:
 
     """making_trackdata
@@ -37,6 +40,9 @@ def making_trackdata(model_data : list,
 
     ds =  None
 
+    output_csv_name = Model_name+'-'+TC_name
+    output_csv_type   = '.csv' # now csv file only
+
     for ne in model_data:
         print(ne)
         ds = nc.Dataset(ne, chunks={'time': 1, 'z': 'auto', 'y': 'auto', 'x': 'auto'})
@@ -44,7 +50,6 @@ def making_trackdata(model_data : list,
         time_var, n_time = util.get_value_time(ne)
 
         if method == 'mslp':
-            output_csv_name = 'mslp'
             var_tyx = ds.variables['MSLP']
 
         max_nx = (var_tyx[0,:,0].shape)[0]
@@ -119,8 +124,9 @@ def making_trackdata(model_data : list,
                             "nx"  :c_nx_t[:],
                             "mslp":var_t[:]})
             df = df.set_index('ft')
+            case_name = util.extract_case_name_scale(ne)
+            df.to_csv(output_dir_path+"/"+output_csv_name+"-"+case_name+"-"+method+"-trackdata"+output_csv_type)
 
-        print(df)
         var_tyx  = None
         min_index = None
         min_coord = None
