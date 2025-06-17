@@ -1,16 +1,15 @@
 ##### import modules
 
-import os
 import logging
+import os
 import re
+from pathlib import Path
 
 import numpy as np
 import scipy.interpolate
 import xarray as xr
 
-from pathlib import Path
-
-#### Logger setting part
+##### ----- Logger setting part -----
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s %(levelname)s %(name)s %(lineno)d] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -31,6 +30,76 @@ def create_dir(dir_path:str) -> None:
         logging.info(f"ディレクトリ '{dir_path}' は既に存在します。")
 
 #####
+def identify_model_from_netcdf(filepath):
+    """
+    NetCDFファイルのグローバル属性、変数名、およびファイル名パターンに基づいて、
+    そのモデルがWRF、SCALE、または不明であるかを判別します。
+
+    Args:
+        filepath (str or Path): 判別したいNetCDFファイルのパス。
+
+    Returns:
+        str: 判別されたモデル名 ('WRF', 'SCALE', '不明')。
+            ファイルが見つからない、または読み込みエラーが発生した場合は'不明'を返します。
+    """
+    # Pathオブジェクトに変換し、ファイル存在チェック
+    p_path = Path(filepath)
+    if not p_path.is_file():
+        print(f"エラー: ファイルが見つかりません - {filepath}")
+        return '不明'
+
+    try:
+        with xr.open_dataset(p_path) as ds:
+            # --- 1. グローバル属性の確認 (最も信頼性が高い) ---
+            global_attrs = {k.lower(): str(v).lower() for k, v in ds.attrs.items()} # 小文字に統一して検索
+
+            # WRF特有の属性キーワード
+            # 'model_name', 'title', 'Conventions' などに 'wrf' や 'arw' が含まれるか
+            if 'wrf' in global_attrs.get('model_name', '') or \
+                'wrf' in global_attrs.get('title', '') or \
+                'arw' in global_attrs.get('conventions', ''):
+                return 'WRF'
+
+            # SCALE特有の属性キーワード
+            # 'source', 'institution' などに 'scale' や 'riken' が含まれるか
+            # SCALEはCFコンベンションに準拠していることが多いので、より具体的なキーワードを探す
+            if 'scale' in global_attrs.get('source', '') or \
+                'riken' in global_attrs.get('institution', '') or \
+                'scale-rm' in global_attrs.get('title', ''): # SCALE-RMの場合など
+                return 'SCALE'
+
+            # --- 2. 変数名の確認 ---
+            variable_names = {var.lower() for var in ds.data_vars.keys()} # 変数名を小文字セットで取得
+
+            # WRF特有の変数名 (WRFの出力でよく見られるもの)
+            # XLAT, XLONG があればWRFの可能性が高い
+            wrf_specific_vars = {'xlat', 'xlong', 't', 'p', 'u', 'v', 'qvapor', 'ph', 'phb', 'u10', 'v10', 't2'}
+            # 少なくとも2つ以上のWRF特有の変数があればWRFと判断
+            if len(variable_names.intersection(wrf_specific_vars)) >= 2:
+                # 特にXLATとXLONGは強力なヒント
+                if 'xlat' in variable_names and 'xlong' in variable_names:
+                    return 'WRF'
+
+            # SCALE特有の変数名 (より汎用的な名前が多いが、特定の組み合わせやファイル名と合わせて)
+            # QV (比湿), U, V, T (温度), W (鉛直風), Z (高度) など
+            scale_common_vars = {'qv', 'u', 'v', 't', 'w', 'z'} # 仮の例。実際のSCALE出力に合わせて調整が必要
+            if len(variable_names.intersection(scale_common_vars)) >= 3:
+                # この段階ではまだ断定せず、ファイル名パターンも考慮
+                pass
+
+            # --- 3. ファイル名のパターンの確認 ---
+            # SCALEの出力ファイルは 'history_dXX.pe######.nc' のようなパターンが多いという情報がある
+            filename_lower = p_path.name.lower()
+            if 'history_d' in filename_lower and '.pe' in filename_lower and '.nc' in filename_lower:
+                return 'SCALE' # ファイル名パターンで判断
+
+            # いずれの条件にも当てはまらない場合
+            return '不明'
+
+    except Exception as e:
+        print(f"ファイル '{filepath}' の読み込みまたは判別中にエラーが発生しました: {e}")
+        return '不明'
+
 def extract_case_name_scale(filepath:str) -> str:
     """
     与えられたファイルパスからケース名（例: CTL, Cd1030）を抽出します。
@@ -140,7 +209,7 @@ def interpolate_time_xy(x_t_in:int, y_t_in:int) -> tuple:
 
 
 def interpolate_coord_x(Xcoord:np.ndarray, x:np.ndarray, new_x:np.ndarray) -> np.ndarray:
-    """_summary_
+    """
     This function performs linear interpolation on a given coordinate array (Xcoord) based on the provided x-coordinates (x)
     and new x-coordinates (new_x). It uses the `scipy.interpolate.interp1d` function to create an interpolation function and then applies it to the new x-coordinates.
 
